@@ -10,7 +10,7 @@ class GameManager:
     def __init__(self):
         pygame.init()
         pygame.display.set_caption('project gamma')
-        self.fps = 100
+        self.fps = 60
         self.resolution = (1920, 1080)
         self.clock = pygame.time.Clock()
         self.display = pygame.display.set_mode(self.resolution)
