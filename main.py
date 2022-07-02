@@ -9,6 +9,7 @@ SLIDER_FONT_SIZE = 25
 RADIO_BUTTON_FONT_SIZE = 30
 CAESAR_SHIFT = 10
 
+
 class GameManager:
     def __init__(self):
         pygame.init()
@@ -125,8 +126,7 @@ class GameManager:
                     elif self.current_condition == CONDITIONS['settings']:
                         if self.settings_buttons['back'].check_click(i):
                             self.fps = self.settings_buttons['fps'].get_value()
-                            self.volume = self.settings_buttons['volume'].get_value(
-                            )
+                            self.volume = self.settings_buttons['volume'].get_value()
                             self.create_settings_file()
                             self.current_condition = CONDITIONS['main menu']
                         if self.settings_buttons['reset'].check_click(i):
