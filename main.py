@@ -4,7 +4,7 @@ from interface import *
 
 
 CONDITIONS = {'main title': 0, 'main menu': 1,
-              'settings': 2, 'hub': 3, 'library': 4, 'characters': 5, 'upgrades': 6, 'choose map': 7}  # condition of game
+            'settings': 2, 'hub': 3, 'library': 4, 'characters': 5, 'upgrades': 6, 'choose map': 7}  # condition of game
 MAPS = {'underground': 0, 'incineration plant': 1}
 CAESAR_SHIFT = 10
 
@@ -22,13 +22,14 @@ class GameManager:
         self.resolution = (1920, 1080)
         self.display = pygame.display.set_mode(self.resolution)
         self.current_condition = CONDITIONS['main title']
-        self.current_map = None
+        self.current_map = 0
         self.save = 'data/save.txt' if 'save.txt' in os.listdir(
             'data') else None
 
         self.main_title = Background('images/menu/main title.png')
         self.main_menu = Background('images/menu/main menu.png')
         self.hub_menu = Background('images/menu/hub menu.png')
+        self.choose_map_menu = Background('images/menu/choose map menu.png')
         # objects
 
         self.main_buttons = {}
@@ -64,6 +65,22 @@ class GameManager:
             x=(self.resolution[0] - 150) // 2, y=900, text='', path='images/menu/exit button.png')
 
         self.choose_map_menu_buttons = {}
+        self.choose_map_menu_buttons['return button'] = Button(
+            x=(self.resolution[0] - 150) // 2 + 550, y=920, text='', path='images/menu/return button.png')
+        self.choose_map_menu_buttons['left arrow'] = Button(
+            x=(self.resolution[0] - 150) // 2 - 500, y=150, weight=256, height=256, text='', path='images/menu/left arrow.png')
+        self.choose_map_menu_buttons['right arrow'] = Button(
+            x=(self.resolution[0] - 150) // 2 + 400, y=150, weight=256, height=256, text='', path='images/menu/right arrow.png')
+        self.choose_map_menu_buttons['start'] = Button(
+            x=(self.resolution[0] - 800) // 2, y=500, text='Начать')
+        self.choose_map_menu_buttons['buy'] = Button(
+            x=(self.resolution[0] - 800) // 2, y=500, text='Купить за 500 чипов', font_size=50)
+        self.choose_map_menu_buttons['underground'] = UserInterface(
+            x=(self.resolution[0] - 600) // 2, y=58, path='images/menu/underground.png')
+        self.choose_map_menu_buttons['incineration plant'] = UserInterface(
+            x=(self.resolution[0] - 600) // 2, y=58, path='images/menu/incineration plant.png')
+        self.descriptions_of_maps = ['Подземная парковка', 'Мусорный сжигатель']
+        self.map_description = Title(x=500, y=700, text=self.descriptions_of_maps[self.current_map], font_size=70)
 
     def main_loop(self):
         while True:
@@ -92,9 +109,31 @@ class GameManager:
                 for i in self.hub_buttons:
                     self.hub_buttons[i].render(self)
             elif self.current_condition == CONDITIONS['choose map']:
-                self.hub_menu.render(self)
+                self.choose_map_menu.render(self)
                 for i in self.choose_map_menu_buttons:
-                    self.choose_map_menu_buttons[i].render(self)
+                    if i == 'start':
+                        if self.current_map in self.player_profile.maps:
+                            self.choose_map_menu_buttons[i].render(self)
+                    elif i == 'buy':
+                        if self.current_map not in self.player_profile.maps:
+                            self.choose_map_menu_buttons[i].render(self)
+                    elif i in MAPS:
+                        if MAPS[i] == self.current_map:
+                            self.choose_map_menu_buttons[i].render(self)
+                        self.indicators_of_difficulty = []
+                        for j in range(len(MAPS)):
+                            if self.current_map >= j:
+                                self.indicators_of_difficulty.append(
+                                    UserInterface(path='images/menu/black circle.png', x=1000 + j * 75, y=880))
+                            else:
+                                self.indicators_of_difficulty.append(
+                                    UserInterface(path='images/menu/white circle.png', x=1000 + j * 75, y=880))
+                        for j in self.indicators_of_difficulty:
+                            j.render(self)
+                    else:
+                        self.choose_map_menu_buttons[i].render(self)
+                    self.map_description.text = self.descriptions_of_maps[self.current_map]
+                    self.map_description.render(self)
 
             # check events
             for i in pygame.event.get():
@@ -131,6 +170,19 @@ class GameManager:
                             exit()
                         if self.hub_buttons['start'].check_click(i):
                             self.current_condition = CONDITIONS['choose map']
+                            self.current_map = MAPS['underground']
+
+                    elif self.current_condition == CONDITIONS['choose map']:
+                        if self.choose_map_menu_buttons['return button'].check_click(i):
+                            self.current_condition = CONDITIONS['hub']
+                        if self.choose_map_menu_buttons['left arrow'].check_click(i):
+                            self.current_map -= 1
+                            if self.current_map < 0:
+                                self.current_map = len(MAPS) - 1
+                        if self.choose_map_menu_buttons['right arrow'].check_click(i):
+                            self.current_map += 1
+                            if self.current_map > len(MAPS) - 1:
+                                self.current_map = 0
 
                 if i.type == pygame.KEYDOWN:
                     if self.current_condition == CONDITIONS['main title']:
@@ -190,7 +242,7 @@ class PLayerProfile():
     def create_default_save_file(self, path):
         self.characters = (0,)
         self.maps = (0,)
-        self.coins = 0
+        self.chips = 0
         self.create_save_file(path)
 
     def read_save(self, path):
@@ -200,7 +252,7 @@ class PLayerProfile():
             data.append(
                 ''.join(map(lambda char: chr(ord(char) - CAESAR_SHIFT), line)))
         data = list(map(lambda y: y[:-1], data))
-        self.coins = int(data[0])
+        self.chips = int(data[0])
         self.characters = list(map(lambda x: int(x), data[1].split(' ')))
         self.characters = list(map(lambda x: int(x), data[2].split(' ')))
         save_file.close()
@@ -208,8 +260,8 @@ class PLayerProfile():
     def create_save_file(self, path):
         characters = self.characters
         maps = self.maps
-        coins = self.coins
-        data = [str(coins),
+        chips = self.chips
+        data = [str(chips),
                 ' '.join(str(i) for i in characters),
                 ' '.join(str(i) for i in maps)]
         settings = open(path, 'w')
