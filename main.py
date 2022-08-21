@@ -1,6 +1,7 @@
 import os
 import pygame
 from interface import *
+from cheat_code import *
 
 
 CONDITIONS = {'main title': 0, 'main menu': 1,
@@ -79,7 +80,9 @@ class GameManager:
             x=(self.resolution[0] - 600) // 2, y=58, path='images/menu/underground.png')
         self.choose_map_menu_buttons['incineration plant'] = UserInterface(
             x=(self.resolution[0] - 600) // 2, y=58, path='images/menu/incineration plant.png')
-        self.descriptions_of_maps = ['Подземная парковка', 'Мусорный сжигатель']
+        self.choose_map_menu_buttons['chips'] = ImageWithCounter(
+            x=(self.resolution[0] - 96) // 2 + 500, y=40, path='images/menu/chip.png')
+        self.descriptions_of_maps = ['Подземная парковка', 'Мусоросжигатель']
         self.map_description = Title(x=500, y=700, text=self.descriptions_of_maps[self.current_map], font_size=70)
 
     def main_loop(self):
@@ -130,6 +133,9 @@ class GameManager:
                                     UserInterface(path='images/menu/white circle.png', x=1000 + j * 75, y=880))
                         for j in self.indicators_of_difficulty:
                             j.render(self)
+                    elif i == 'chips':
+                        self.choose_map_menu_buttons[i].update_value(str(self.player_profile.chips))
+                        self.choose_map_menu_buttons[i].render(self)
                     else:
                         self.choose_map_menu_buttons[i].render(self)
                     self.map_description.text = self.descriptions_of_maps[self.current_map]
@@ -187,6 +193,8 @@ class GameManager:
                 if i.type == pygame.KEYDOWN:
                     if self.current_condition == CONDITIONS['main title']:
                         self.current_condition = CONDITIONS['main menu']
+                    if i.key == pygame.K_BACKQUOTE:
+                        self.cheat_engine = CheatCode(self)
 
             pygame.display.update()
 
@@ -270,6 +278,9 @@ class PLayerProfile():
                 settings.write(chr(ord(char) + CAESAR_SHIFT))
             settings.write('\n')
         settings.close()
+    
+    def add_chips(self, value):
+        self.chips += value
 
 
 def main():

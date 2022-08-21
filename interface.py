@@ -28,6 +28,22 @@ class Title(UserInterface):
         game_manager.display.blit(self.text_box, (self.x, self.y))
 
 
+class ImageWithCounter(UserInterface):
+    def __init__(self, path, text='0', x=0, y=0, color=(0, 0, 0), font_size=MAIN_FONT_SIZE):
+        super().__init__(path, x=x, y=y)
+        self.text = text
+        self.color = color
+        self.font = pygame.font.Font(FONT, font_size)
+
+    def render(self, game_manager):
+        self.text_box = self.font.render(self.text, True, self.color)
+        game_manager.display.blit(self.image, (self.x, self.y))
+        game_manager.display.blit(self.text_box, (self.x + self.image.get_width() + 30, self.y))
+    
+    def update_value(self, value):
+        self.text = value
+
+
 class Background(UserInterface):
     def render(self, game_manager):
         game_manager.display.blit(self.image, self.image.get_rect())
