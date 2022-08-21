@@ -1,2 +1,2 @@
 # project-gamma
-game with cuberpunk style
+game with cyberpunk style
