@@ -2,11 +2,13 @@ import os
 import pygame
 from interface import *
 from cheat_code import *
+from map import *
 
 
 CONDITIONS = {'main title': 0, 'main menu': 1,
-            'settings': 2, 'hub': 3, 'library': 4, 'characters': 5, 'upgrades': 6, 'choose map': 7}  # condition of game
+              'settings': 2, 'hub': 3, 'library': 4, 'characters': 5, 'upgrades': 6, 'choose map': 7, 'game': 8}  # condition of game
 MAPS = {'underground': 0, 'incineration plant': 1}
+CHARACTERS = {'cleaner': 0, 'guard': 1}
 CAESAR_SHIFT = 10
 
 
@@ -23,7 +25,9 @@ class GameManager:
         self.resolution = (1920, 1080)
         self.display = pygame.display.set_mode(self.resolution)
         self.current_condition = CONDITIONS['main title']
-        self.current_map = 0
+        self.current_map = MAPS['underground']
+        self.current_character = CHARACTERS['cleaner']
+        self.difficulty = 1
         self.save = 'data/save.txt' if 'save.txt' in os.listdir(
             'data') else None
 
@@ -83,120 +87,139 @@ class GameManager:
         self.choose_map_menu_buttons['chips'] = ImageWithCounter(
             x=(self.resolution[0] - 96) // 2 + 500, y=40, path='images/menu/chip.png')
         self.descriptions_of_maps = ['Подземная парковка', 'Мусоросжигатель']
-        self.map_description = Title(x=500, y=700, text=self.descriptions_of_maps[self.current_map], font_size=70)
+        self.map_description = Title(
+            x=500, y=700, text=self.descriptions_of_maps[self.current_map], font_size=70)
 
     def main_loop(self):
         while True:
             self.clock.tick(self.fps)
-            # load interface by condition
-            if self.current_condition == CONDITIONS['main title']:
-                self.main_title.render(self)
-            elif self.current_condition == CONDITIONS['main menu']:
-                self.main_menu.render(self)
-                # check up save
-                for i in self.main_buttons:
-                    if i == 'continue':
-                        if self.save != None:
-                            self.main_buttons[i].render(self)
-                    elif i == 'new game':
-                        if self.save == None:
-                            self.main_buttons[i].render(self)
-                    else:
-                        self.main_buttons[i].render(self)
-            elif self.current_condition == CONDITIONS['settings']:
-                self.main_menu.render(self)
-                for i in self.settings_buttons:
-                    self.settings_buttons[i].render(self)
-            elif self.current_condition == CONDITIONS['hub']:
-                self.hub_menu.render(self)
-                for i in self.hub_buttons:
-                    self.hub_buttons[i].render(self)
-            elif self.current_condition == CONDITIONS['choose map']:
-                self.choose_map_menu.render(self)
-                for i in self.choose_map_menu_buttons:
-                    if i == 'start':
-                        if self.current_map in self.player_profile.maps:
-                            self.choose_map_menu_buttons[i].render(self)
-                    elif i == 'buy':
-                        if self.current_map not in self.player_profile.maps:
-                            self.choose_map_menu_buttons[i].render(self)
-                    elif i in MAPS:
-                        if MAPS[i] == self.current_map:
-                            self.choose_map_menu_buttons[i].render(self)
-                        self.indicators_of_difficulty = []
-                        for j in range(len(MAPS)):
-                            if self.current_map >= j:
-                                self.indicators_of_difficulty.append(
-                                    UserInterface(path='images/menu/black circle.png', x=1000 + j * 75, y=880))
-                            else:
-                                self.indicators_of_difficulty.append(
-                                    UserInterface(path='images/menu/white circle.png', x=1000 + j * 75, y=880))
-                        for j in self.indicators_of_difficulty:
-                            j.render(self)
-                    elif i == 'chips':
-                        self.choose_map_menu_buttons[i].update_value(str(self.player_profile.chips))
-                        self.choose_map_menu_buttons[i].render(self)
-                    else:
-                        self.choose_map_menu_buttons[i].render(self)
-                    self.map_description.text = self.descriptions_of_maps[self.current_map]
-                    self.map_description.render(self)
-
-            # check events
-            for i in pygame.event.get():
-                if i.type == pygame.QUIT:
-                    exit()
-                if i.type == pygame.MOUSEBUTTONDOWN:
-                    if self.current_condition == CONDITIONS['main menu']:
-                        if self.main_buttons['exit'].check_click(i):
-                            exit()
-                        if self.main_buttons['settings'].check_click(i):
-                            self.current_condition = CONDITIONS['settings']
-                        if self.main_buttons['continue'].check_click(i) or self.main_buttons['new game'].check_click(i):
-                            self.current_condition = CONDITIONS['hub']
-                            self.player_profile = PLayerProfile(
-                                'data/save.txt')
-
-                    elif self.current_condition == CONDITIONS['settings']:
-                        if self.settings_buttons['back'].check_click(i):
-                            self.fps = self.settings_buttons['fps'].get_value()
-                            self.volume = self.settings_buttons['volume'].get_value(
-                            )
-                            self.create_settings_file()
-                            self.current_condition = CONDITIONS['main menu']
-                        if self.settings_buttons['reset'].check_click(i):
-                            self.reset_settings()
-                            self.settings_buttons['fps'].set_value(self.fps)
-                            self.settings_buttons['volume'].set_value(
-                                self.volume)
-                        self.settings_buttons['volume'].set_value_by_mouse(i)
-                        self.settings_buttons['fps'].set_value_by_mouse(i)
-
-                    elif self.current_condition == CONDITIONS['hub']:
-                        if self.hub_buttons['exit button'].check_click(i):
-                            exit()
-                        if self.hub_buttons['start'].check_click(i):
-                            self.current_condition = CONDITIONS['choose map']
-                            self.current_map = MAPS['underground']
-
-                    elif self.current_condition == CONDITIONS['choose map']:
-                        if self.choose_map_menu_buttons['return button'].check_click(i):
-                            self.current_condition = CONDITIONS['hub']
-                        if self.choose_map_menu_buttons['left arrow'].check_click(i):
-                            self.current_map -= 1
-                            if self.current_map < 0:
-                                self.current_map = len(MAPS) - 1
-                        if self.choose_map_menu_buttons['right arrow'].check_click(i):
-                            self.current_map += 1
-                            if self.current_map > len(MAPS) - 1:
-                                self.current_map = 0
-
-                if i.type == pygame.KEYDOWN:
-                    if self.current_condition == CONDITIONS['main title']:
-                        self.current_condition = CONDITIONS['main menu']
-                    if i.key == pygame.K_BACKQUOTE:
-                        self.cheat_engine = CheatCode(self)
-
+            self.load_interface()
+            self.check_events()
+            # autosave
+            if self.current_condition not in [CONDITIONS['main title'], CONDITIONS['main menu'], CONDITIONS['settings']]:
+                self.player_profile.create_save_file('data/save.txt')
             pygame.display.update()
+
+    def load_interface(self):
+        if self.current_condition == CONDITIONS['main title']:
+            self.main_title.render(self)
+        elif self.current_condition == CONDITIONS['main menu']:
+            self.main_menu.render(self)
+            # check up save
+            for i in self.main_buttons:
+                if i == 'continue':
+                    if self.save != None:
+                        self.main_buttons[i].render(self)
+                elif i == 'new game':
+                    if self.save == None:
+                        self.main_buttons[i].render(self)
+                else:
+                    self.main_buttons[i].render(self)
+        elif self.current_condition == CONDITIONS['settings']:
+            self.main_menu.render(self)
+            for i in self.settings_buttons:
+                self.settings_buttons[i].render(self)
+        elif self.current_condition == CONDITIONS['hub']:
+            self.hub_menu.render(self)
+            for i in self.hub_buttons:
+                self.hub_buttons[i].render(self)
+        elif self.current_condition == CONDITIONS['choose map']:
+            self.choose_map_menu.render(self)
+            for i in self.choose_map_menu_buttons:
+                if i == 'start':
+                    if self.current_map in self.player_profile.maps:
+                        self.choose_map_menu_buttons[i].render(self)
+                elif i == 'buy':
+                    if self.current_map not in self.player_profile.maps:
+                        self.choose_map_menu_buttons[i].render(self)
+                elif i in MAPS:
+                    if MAPS[i] == self.current_map:
+                        self.choose_map_menu_buttons[i].render(self)
+                    self.indicators_of_difficulty = []
+                    for j in range(len(MAPS)):
+                        if self.current_map >= j:
+                            self.indicators_of_difficulty.append(
+                                UserInterface(path='images/menu/black circle.png', x=1000 + j * 75, y=880))
+                        else:
+                            self.indicators_of_difficulty.append(
+                                UserInterface(path='images/menu/white circle.png', x=1000 + j * 75, y=880))
+                    for j in self.indicators_of_difficulty:
+                        j.render(self)
+                elif i == 'chips':
+                    self.choose_map_menu_buttons[i].update_value(
+                        str(self.player_profile.chips))
+                    self.choose_map_menu_buttons[i].render(self)
+                else:
+                    self.choose_map_menu_buttons[i].render(self)
+                self.map_description.text = self.descriptions_of_maps[self.current_map]
+                self.map_description.render(self)
+        elif self.current_condition == CONDITIONS['game']:
+            self.map.render(self.player_entity.x, self.player_entity.y, self)
+            self.player_entity.render(self)
+
+    def check_events(self):
+        for i in pygame.event.get():
+            if i.type == pygame.QUIT:
+                exit()
+            if i.type == pygame.MOUSEBUTTONDOWN:
+                if self.current_condition == CONDITIONS['main menu']:
+                    if self.main_buttons['exit'].check_click(i):
+                        exit()
+                    if self.main_buttons['settings'].check_click(i):
+                        self.current_condition = CONDITIONS['settings']
+                    if self.main_buttons['continue'].check_click(i) or self.main_buttons['new game'].check_click(i):
+                        self.current_condition = CONDITIONS['hub']
+                        self.player_profile = PLayerProfile(
+                            'data/save.txt')
+
+                elif self.current_condition == CONDITIONS['settings']:
+                    if self.settings_buttons['back'].check_click(i):
+                        self.fps = self.settings_buttons['fps'].get_value()
+                        self.volume = self.settings_buttons['volume'].get_value(
+                        )
+                        self.create_settings_file()
+                        self.current_condition = CONDITIONS['main menu']
+                    if self.settings_buttons['reset'].check_click(i):
+                        self.reset_settings()
+                        self.settings_buttons['fps'].set_value(self.fps)
+                        self.settings_buttons['volume'].set_value(
+                            self.volume)
+                    self.settings_buttons['volume'].set_value_by_mouse(i)
+                    self.settings_buttons['fps'].set_value_by_mouse(i)
+
+                elif self.current_condition == CONDITIONS['hub']:
+                    if self.hub_buttons['exit button'].check_click(i):
+                        exit()
+                    if self.hub_buttons['start'].check_click(i):
+                        self.current_condition = CONDITIONS['choose map']
+                        self.current_map = MAPS['underground']
+
+                elif self.current_condition == CONDITIONS['choose map']:
+                    if self.choose_map_menu_buttons['return button'].check_click(i):
+                        self.current_condition = CONDITIONS['hub']
+                    if self.choose_map_menu_buttons['left arrow'].check_click(i):
+                        self.current_map -= 1
+                        if self.current_map < 0:
+                            self.current_map = len(MAPS) - 1
+                    if self.choose_map_menu_buttons['right arrow'].check_click(i):
+                        self.current_map += 1
+                        if self.current_map > len(MAPS) - 1:
+                            self.current_map = 0
+                    if self.choose_map_menu_buttons['start'].check_click(i):
+                        self.current_condition = CONDITIONS['game']
+                        self.map = Map(self.current_map)
+                        self.player_entity = Player(
+                            0, 0, f'images/character/{self.current_character}.png')
+                        self.difficulty = 1
+
+            if i.type == pygame.KEYDOWN:
+                if self.current_condition == CONDITIONS['main title']:
+                    self.current_condition = CONDITIONS['main menu']
+                if i.key == pygame.K_BACKQUOTE:
+                    self.cheat_engine = CheatCode(self)
+            
+        if self.current_condition == CONDITIONS['game']:
+            self.player_entity.update_movement(self.fps)
 
     def create_default_settings_file(self):
         fps = 60
@@ -262,7 +285,7 @@ class PLayerProfile():
         data = list(map(lambda y: y[:-1], data))
         self.chips = int(data[0])
         self.characters = list(map(lambda x: int(x), data[1].split(' ')))
-        self.characters = list(map(lambda x: int(x), data[2].split(' ')))
+        self.maps = list(map(lambda x: int(x), data[2].split(' ')))
         save_file.close()
 
     def create_save_file(self, path):
@@ -278,10 +301,69 @@ class PLayerProfile():
                 settings.write(chr(ord(char) + CAESAR_SHIFT))
             settings.write('\n')
         settings.close()
-    
+
     def add_chips(self, value):
         self.chips += value
 
+
+class Entity():
+    def __init__(self, x, y, path):
+        self.x = x
+        self.y = y
+        self.image = pygame.image.load(path)
+        self.size = self.image.get_size()[0]
+
+
+class Player(Entity):
+    def __init__(self, x, y, path):
+        super().__init__(x, y, path)
+        self.speed = 300
+        self.image = pygame.transform.scale(self.image, (100, 100))
+
+    def update_movement(self, fps):
+        mouse_pos = pygame.mouse.get_pos()
+        mouse_x = mouse_pos[0]
+        mouse_y = mouse_pos[1]
+        k = (self.speed/fps) / (abs(1920 // 2 - mouse_x) + abs(1080 // 2 - mouse_y))
+        self.x -= (1920 // 2 - mouse_x) * k
+        self.y -= (1080 // 2 - mouse_y) * k
+    
+    def render(self, game_manager):
+        game_manager.display.blit(
+            self.image, (1920 // 2 - self.size // 2, 1080 // 2 - self.size // 2))
+
+
+class Enemy(Entity):
+    def __init__(self, x, y, path, damage=100, attack_speed = 1):
+        super().__init__(x, y, path)
+        self.speed = 200
+        self.base_damage = damage
+        self.attack_speed = attack_speed
+    
+    def update_movement(self, fps, target_xy):
+        self.target = target_xy
+        target_x = self.target[0]
+        target_y = self.target[1]
+        k = (self.speed/fps) / \
+            (abs(self.x - target_x) + abs(self.y - target_y))
+        self.x -= (self.x - target_x) * k
+        self.y -= (self.y - target_y) * k
+    
+    def render(self, game_manager):
+        game_manager.display.blit(
+            self.image, (1920 // 2 - self.size // 2, 1080 // 2 - self.size // 2))
+
+
+class Warrior(Enemy):
+    def __init__(self, x, y, path):
+        super().__init__(x, y, path, 100, 1)
+
+
+class Weapon():
+    def __init__(self, path, speed=1, damage=30):
+        self.image = pygame.image.load(path)
+        self.attack_speed = speed
+        self.damage = damage
 
 def main():
     game_manager = GameManager()
