@@ -1,5 +1,6 @@
 import os
 import pygame
+import time
 from interface import *
 from cheat_code import *
 from map import *
@@ -24,10 +25,10 @@ class GameManager:
         self.clock = pygame.time.Clock()
         self.resolution = (1920, 1080)
         self.display = pygame.display.set_mode(self.resolution)
+        self.display.set_alpha(None)
         self.current_condition = CONDITIONS['main title']
         self.current_map = MAPS['underground']
         self.current_character = CHARACTERS['cleaner']
-        self.difficulty = 1
         self.save = 'data/save.txt' if 'save.txt' in os.listdir(
             'data') else None
 
@@ -153,9 +154,6 @@ class GameManager:
                     self.choose_map_menu_buttons[i].render(self)
                 self.map_description.text = self.descriptions_of_maps[self.current_map]
                 self.map_description.render(self)
-        elif self.current_condition == CONDITIONS['game']:
-            self.map.render(self.player_entity.x, self.player_entity.y, self)
-            self.player_entity.render(self)
 
     def check_events(self):
         for i in pygame.event.get():
@@ -210,16 +208,26 @@ class GameManager:
                         self.map = Map(self.current_map)
                         self.player_entity = Player(
                             0, 0, f'images/character/{self.current_character}.png')
-                        self.difficulty = 1
+                        self.enemy_spawner = EnemySpawner(self.current_map, self.fps, self)
+                        self.start_time = time.time()
 
             if i.type == pygame.KEYDOWN:
                 if self.current_condition == CONDITIONS['main title']:
                     self.current_condition = CONDITIONS['main menu']
                 if i.key == pygame.K_BACKQUOTE:
                     self.cheat_engine = CheatCode(self)
-            
+
         if self.current_condition == CONDITIONS['game']:
-            self.player_entity.update_movement(self.fps)
+            self.time_since_start = int((time.time() - self.start_time) * 100) / 100
+            self.map.render(self.player_entity.x, self.player_entity.y, self)
+            self.player_entity.render(self)
+            self.player_entity.update_movement(self.clock.get_fps())
+            self.enemy_spawner.update_enemy_movement(
+                self.player_entity.x, self.player_entity.y)
+            self.enemy_spawner.update_dificulty(self.time_since_start)
+            if self.time_since_start % 1 == 0 and int(self.time_since_start) % 5 == 0:
+                self.enemy_spawner.spawn_enemies(
+                    (self.map.current_chunk_x, self.map.current_chunk_y))
 
     def create_default_settings_file(self):
         fps = 60
@@ -324,34 +332,65 @@ class Player(Entity):
         mouse_pos = pygame.mouse.get_pos()
         mouse_x = mouse_pos[0]
         mouse_y = mouse_pos[1]
-        k = (self.speed/fps) / (abs(1920 // 2 - mouse_x) + abs(1080 // 2 - mouse_y))
+        k = (self.speed/fps) / \
+            (abs(1920 // 2 - mouse_x) + abs(1080 // 2 - mouse_y))
         self.x -= (1920 // 2 - mouse_x) * k
         self.y -= (1080 // 2 - mouse_y) * k
-    
+
     def render(self, game_manager):
         game_manager.display.blit(
             self.image, (1920 // 2 - self.size // 2, 1080 // 2 - self.size // 2))
+
+
+class EnemySpawner():
+    def __init__(self, map, fps, game_manager):
+        self.map = map
+        self.enemies = []
+        self.fps = fps
+        self.game_manager = game_manager
+
+    def spawn_enemies(self, current_chunk):
+        self.chunks_to_spawn = [(i, j) for i in range(
+            current_chunk[0] - 1, current_chunk[0] + 2) for j in range(current_chunk[1] - 1, current_chunk[1] + 2)]
+        self.chunks_to_spawn.remove((current_chunk[0], current_chunk[1]))
+        if self.map == MAPS['underground']:
+            for i in self.chunks_to_spawn:
+                enemy_x = randint(int(i[0]) * 1024, (int(i[0]) + 1) * 1024)
+                enemy_y = randint(int(i[1]) * 1024, (int(i[1]) + 1) * 1024)
+                self.enemies.append(Enemy(enemy_x, enemy_y, f'images/enemy/{self.map}/1.png', self.fps))
+
+    def update_enemy_movement(self, target_x, target_y):
+        for i in self.enemies:
+            i.update_movement(target_x, target_y)
+            i.render(self.game_manager, target_x , target_y)
+
+    def update_dificulty(self, time):
+        self.dificulty = time // 60
 
 
 class Enemy(Entity):
-    def __init__(self, x, y, path, damage=100, attack_speed = 1):
+    def __init__(self, x, y, path, fps, damage=10, attack_speed=1, base_hp=100):
         super().__init__(x, y, path)
+        self.fps = fps
         self.speed = 200
         self.base_damage = damage
         self.attack_speed = attack_speed
-    
-    def update_movement(self, fps, target_xy):
-        self.target = target_xy
-        target_x = self.target[0]
-        target_y = self.target[1]
-        k = (self.speed/fps) / \
+        self.base_hp = base_hp
+
+    def update_movement(self, target_x, target_y):
+        k = (self.speed/self.fps) / \
             (abs(self.x - target_x) + abs(self.y - target_y))
         self.x -= (self.x - target_x) * k
         self.y -= (self.y - target_y) * k
-    
-    def render(self, game_manager):
+
+    def render(self, game_manager, player_x, player_y):
+        relative_x = 960 - player_x + self.x
+        relative_y = 540 - player_y + self.y
         game_manager.display.blit(
-            self.image, (1920 // 2 - self.size // 2, 1080 // 2 - self.size // 2))
+            self.image, (relative_x, relative_y))
+
+    def update_stats(self, time):
+        pass
 
 
 class Warrior(Enemy):
@@ -364,6 +403,7 @@ class Weapon():
         self.image = pygame.image.load(path)
         self.attack_speed = speed
         self.damage = damage
+
 
 def main():
     game_manager = GameManager()
