@@ -222,10 +222,10 @@ class GameManager:
             self.time_since_start = int(
                 (time.time() - self.start_time) * 100) / 100
             self.map.render(self.player_entity.x, self.player_entity.y, self)
-            self.player_entity.render(self)
             self.player_entity.update_movement(self.clock.get_fps())
             self.enemy_spawner.update_enemy_movement(
                 self.player_entity.x, self.player_entity.y)
+            self.player_entity.render(self)
             self.enemy_spawner.update_dificulty(self.time_since_start)
             if self.time_since_start % 1 == 0 and int(self.time_since_start) % 5 == 0:
                 self.enemy_spawner.spawn_enemies(
@@ -361,7 +361,7 @@ class EnemySpawner():
                 enemy_x = randint(int(i[0]) * 1024, (int(i[0]) + 1) * 1024)
                 enemy_y = randint(int(i[1]) * 1024, (int(i[1]) + 1) * 1024)
                 self.enemies.append(
-                    Enemy(enemy_x, enemy_y, f'images/enemy/{self.map}/1.png', self.fps))
+                    Enemy(enemy_x, enemy_y, f'images/enemy/{self.map}/0.png', self.fps))
 
     def update_enemy_movement(self, target_x, target_y):
         self.all_enemies_image = Image.new('RGB', (1920, 1080), color=None)
@@ -369,7 +369,8 @@ class EnemySpawner():
             i.update_movement(target_x, target_y)
             relative_x, relative_y = i.return_relative_coords(
                 target_x, target_y)
-            self.game_manager.display.blit(i.image.convert(), (relative_x, relative_y))
+            self.game_manager.display.blit(
+                i.image.convert_alpha(), (relative_x, relative_y))
 
 
     def update_dificulty(self, time):
@@ -392,8 +393,8 @@ class Enemy(Entity):
         self.y -= (self.y - target_y) * k
 
     def return_relative_coords(self, player_x, player_y):
-        relative_x = 960 - player_x + self.x
-        relative_y = 540 - player_y + self.y
+        relative_x = 960 - player_x - 64 + self.x
+        relative_y = 540 - player_y - 64 + self.y
         return int(relative_x), int(relative_y)
 
     def update_stats(self, time):
