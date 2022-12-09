@@ -4,6 +4,7 @@ import time
 from interface import *
 from cheat_code import *
 from map import *
+from datetime import datetime
 
 
 CONDITIONS = {'main title': 0, 'main menu': 1,
@@ -25,7 +26,6 @@ class GameManager:
         self.clock = pygame.time.Clock()
         self.resolution = (1920, 1080)
         self.display = pygame.display.set_mode(self.resolution)
-        self.display.set_alpha(None)
         self.current_condition = CONDITIONS['main title']
         self.current_map = MAPS['underground']
         self.current_character = CHARACTERS['cleaner']
@@ -208,7 +208,8 @@ class GameManager:
                         self.map = Map(self.current_map)
                         self.player_entity = Player(
                             0, 0, f'images/character/{self.current_character}.png')
-                        self.enemy_spawner = EnemySpawner(self.current_map, self.fps, self)
+                        self.enemy_spawner = EnemySpawner(
+                            self.current_map, self.fps, self)
                         self.start_time = time.time()
 
             if i.type == pygame.KEYDOWN:
@@ -218,7 +219,8 @@ class GameManager:
                     self.cheat_engine = CheatCode(self)
 
         if self.current_condition == CONDITIONS['game']:
-            self.time_since_start = int((time.time() - self.start_time) * 100) / 100
+            self.time_since_start = int(
+                (time.time() - self.start_time) * 100) / 100
             self.map.render(self.player_entity.x, self.player_entity.y, self)
             self.player_entity.render(self)
             self.player_entity.update_movement(self.clock.get_fps())
@@ -333,7 +335,7 @@ class Player(Entity):
         mouse_x = mouse_pos[0]
         mouse_y = mouse_pos[1]
         k = (self.speed/fps) / \
-            (abs(1920 // 2 - mouse_x) + abs(1080 // 2 - mouse_y))
+            (abs(1920 // 2 - mouse_x) + abs(1080 // 2 - mouse_y) + 1)
         self.x -= (1920 // 2 - mouse_x) * k
         self.y -= (1080 // 2 - mouse_y) * k
 
@@ -344,6 +346,7 @@ class Player(Entity):
 
 class EnemySpawner():
     def __init__(self, map, fps, game_manager):
+        self.all_enemies_image = Image.new('RGB', (1920, 1080))
         self.map = map
         self.enemies = []
         self.fps = fps
@@ -357,12 +360,17 @@ class EnemySpawner():
             for i in self.chunks_to_spawn:
                 enemy_x = randint(int(i[0]) * 1024, (int(i[0]) + 1) * 1024)
                 enemy_y = randint(int(i[1]) * 1024, (int(i[1]) + 1) * 1024)
-                self.enemies.append(Enemy(enemy_x, enemy_y, f'images/enemy/{self.map}/1.png', self.fps))
+                self.enemies.append(
+                    Enemy(enemy_x, enemy_y, f'images/enemy/{self.map}/1.png', self.fps))
 
     def update_enemy_movement(self, target_x, target_y):
+        self.all_enemies_image = Image.new('RGB', (1920, 1080), color=None)
         for i in self.enemies:
             i.update_movement(target_x, target_y)
-            i.render(self.game_manager, target_x , target_y)
+            relative_x, relative_y = i.return_relative_coords(
+                target_x, target_y)
+            self.game_manager.display.blit(i.image.convert(), (relative_x, relative_y))
+
 
     def update_dificulty(self, time):
         self.dificulty = time // 60
@@ -383,11 +391,10 @@ class Enemy(Entity):
         self.x -= (self.x - target_x) * k
         self.y -= (self.y - target_y) * k
 
-    def render(self, game_manager, player_x, player_y):
+    def return_relative_coords(self, player_x, player_y):
         relative_x = 960 - player_x + self.x
         relative_y = 540 - player_y + self.y
-        game_manager.display.blit(
-            self.image, (relative_x, relative_y))
+        return int(relative_x), int(relative_y)
 
     def update_stats(self, time):
         pass
