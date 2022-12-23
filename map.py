@@ -36,17 +36,17 @@ class Map():
     def render(self, player_x, player_y, game_manager):
         self.player_x = int(player_x)
         self.player_y = int(player_y)
-        self.current_chunk_x = self.player_x // 1024 - 2
-        self.current_chunk_y = self.player_y // 1024 - 2
+        self.current_chunk_x = self.player_x // 1024
+        self.current_chunk_y = self.player_y // 1024
         self.current_chunk_relative_x = 1960//2 - self.player_x % 1024 - 1024
         self.current_chunk_relative_y = 1080//2 - self.player_y % 1024 - 1024
-        self.add_chunks([i, j] for i in range(self.current_chunk_x, self.current_chunk_x + 3)
-                        for j in range(self.current_chunk_y, self.current_chunk_y + 3))
-        for i in range(self.current_chunk_x, self.current_chunk_x + 3):
-            for j in range(self.current_chunk_y, self.current_chunk_y + 3):
+        self.add_chunks([i, j] for i in range(self.current_chunk_x - 2, self.current_chunk_x + 1)
+                        for j in range(self.current_chunk_y - 2, self.current_chunk_y + 1))
+        for i in range(self.current_chunk_x - 2, self.current_chunk_x + 1):
+            for j in range(self.current_chunk_y - 2, self.current_chunk_y + 1):
                 current_image_chunks = self.chunks_dict[f'{i} {j}'].image
                 game_manager.display.blit(current_image_chunks, (
-                    self.current_chunk_relative_x + 1024 * (i - self.current_chunk_x), self.current_chunk_relative_y + 1024 * (j - self.current_chunk_y)))
+                    self.current_chunk_relative_x + 1024 * (i - self.current_chunk_x + 2), self.current_chunk_relative_y + 1024 * (j - self.current_chunk_y + 2)))
 
 
 class Chunk():

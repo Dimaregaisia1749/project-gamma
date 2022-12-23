@@ -4,7 +4,7 @@ import time
 from interface import *
 from cheat_code import *
 from map import *
-from datetime import datetime
+from numpy import sign
 
 
 CONDITIONS = {'main title': 0, 'main menu': 1,
@@ -228,8 +228,7 @@ class GameManager:
             self.player_entity.render(self)
             self.enemy_spawner.update_dificulty(self.time_since_start)
             if self.time_since_start % 1 == 0 and int(self.time_since_start) % 5 == 0:
-                self.enemy_spawner.spawn_enemies(
-                    (self.map.current_chunk_x, self.map.current_chunk_y))
+                self.enemy_spawner.spawn_enemies()
 
     def create_default_settings_file(self):
         fps = 60
@@ -316,19 +315,24 @@ class PLayerProfile():
         self.chips += value
 
 
-class Entity():
+class Entity(pygame.sprite.Sprite):
     def __init__(self, x, y, path):
+        pygame.sprite.Sprite.__init__(self)
         self.x = x
         self.y = y
-        self.image = pygame.image.load(path)
-        self.size = self.image.get_size()[0]
+        self.image = pygame.image.load(path).convert_alpha()
+        self.size = self.image.get_size()[0] // 2
+        self.rect = self.image.get_rect()
+        self.rect.height //= 2
+        self.rect.width //= 2
 
 
 class Player(Entity):
     def __init__(self, x, y, path):
         super().__init__(x, y, path)
         self.speed = 300
-        self.image = pygame.transform.scale(self.image, (100, 100))
+        self.image = pygame.transform.scale(
+            self.image, (100, 100)).convert_alpha()
 
     def update_movement(self, fps):
         mouse_pos = pygame.mouse.get_pos()
@@ -344,6 +348,53 @@ class Player(Entity):
             self.image, (1920 // 2 - self.size // 2, 1080 // 2 - self.size // 2))
 
 
+class Enemy(Entity):
+    def __init__(self, x, y, path, group, damage=10, attack_speed=1, base_hp=100):
+        super().__init__(x, y, path)
+        self.speed = 200
+        self.base_damage = damage
+        self.attack_speed = attack_speed
+        self.base_hp = base_hp
+        self.group = group
+        self.add(self.group)
+
+    def update_movement(self, target_x, target_y, fps):
+        k = (self.speed/fps) / (abs(self.x - target_x) + abs(self.y - target_y))
+        delta_x = (self.x - target_x) * k
+        delta_y = (self.y - target_y) * k
+        self.group.remove(self)
+        self.rect.x -= delta_x
+        self.rect.y -= delta_y
+        collision = pygame.sprite.spritecollideany(self, self.group)
+        if collision == None:
+            self.x -= delta_x
+            self.y -= delta_y
+        else:
+            if abs(collision.rect.x - 1920 / 2) < abs(self.rect.x - 1920 / 2):
+                self.x += delta_x / 2
+            else:
+                self.x -= delta_x / 2
+            if abs(collision.rect.y - 1080 / 2) < abs(self.rect.y - 1080 / 2):
+                self.y += delta_y / 2
+            else:
+                self.y-= delta_y / 2
+        self.add(self.group)
+
+    def return_relative_coords(self, player_x, player_y):
+        relative_x = 960 - player_x - 64 + self.x
+        relative_y = 540 - player_y - 64 + self.y
+        return int(relative_x), int(relative_y)
+    
+    def render(self, player_x, player_y, game_manager):
+        relative_x, relative_y = self.return_relative_coords(player_x, player_y)
+        self.rect.x = relative_x
+        self.rect.y = relative_y
+        game_manager.display.blit(self.image, (relative_x, relative_y))
+
+    def update_stats(self, time):
+        pass
+
+
 class EnemySpawner():
     def __init__(self, map, fps, game_manager):
         self.all_enemies_image = Image.new('RGB', (1920, 1080))
@@ -351,59 +402,42 @@ class EnemySpawner():
         self.enemies = []
         self.fps = fps
         self.game_manager = game_manager
+        self.enemy_group = pygame.sprite.Group()
 
-    def spawn_enemies(self, current_chunk):
-        self.chunks_to_spawn = [(i, j) for i in range(
-            current_chunk[0] - 1, current_chunk[0] + 2) for j in range(current_chunk[1] - 1, current_chunk[1] + 2)]
-        self.chunks_to_spawn.remove((current_chunk[0], current_chunk[1]))
+    def spawn_enemies(self):
+        x = self.game_manager.player_entity.x
+        y = self.game_manager.player_entity.y
         if self.map == MAPS['underground']:
-            for i in self.chunks_to_spawn:
-                enemy_x = randint(int(i[0]) * 1024, (int(i[0]) + 1) * 1024)
-                enemy_y = randint(int(i[1]) * 1024, (int(i[1]) + 1) * 1024)
+            for i in range(30):
+                enemy_x = randint(0, 1920)
+                enemy_y = randint(0, 1080)
+                x_sign = randint(0, 2)
+                y_sign = randint(0, 2)
+                if x_sign == 0:
+                    enemy_x = x + enemy_x + 1920
+                elif x_sign == 1:
+                    enemy_x = x - enemy_x - 1920
+                if y_sign == 0:
+                    enemy_y = y + enemy_y + 1080
+                else:
+                    enemy_y = y - enemy_y - 1080
                 self.enemies.append(
-                    Enemy(enemy_x, enemy_y, f'images/enemy/{self.map}/0.png', self.fps))
+                    Warrior(enemy_x, enemy_y, f'images/enemy/{self.map}/0.png', self.enemy_group))
 
     def update_enemy_movement(self, target_x, target_y):
         self.all_enemies_image = Image.new('RGB', (1920, 1080), color=None)
         for i in self.enemies:
-            i.update_movement(target_x, target_y)
-            relative_x, relative_y = i.return_relative_coords(
-                target_x, target_y)
-            self.game_manager.display.blit(
-                i.image.convert_alpha(), (relative_x, relative_y))
+            i.update_movement(target_x, target_y, self.game_manager.clock.get_fps())
+            i.render(target_x, target_y, self.game_manager)
 
 
     def update_dificulty(self, time):
         self.dificulty = time // 60
 
 
-class Enemy(Entity):
-    def __init__(self, x, y, path, fps, damage=10, attack_speed=1, base_hp=100):
-        super().__init__(x, y, path)
-        self.fps = fps
-        self.speed = 200
-        self.base_damage = damage
-        self.attack_speed = attack_speed
-        self.base_hp = base_hp
-
-    def update_movement(self, target_x, target_y):
-        k = (self.speed/self.fps) / \
-            (abs(self.x - target_x) + abs(self.y - target_y))
-        self.x -= (self.x - target_x) * k
-        self.y -= (self.y - target_y) * k
-
-    def return_relative_coords(self, player_x, player_y):
-        relative_x = 960 - player_x - 64 + self.x
-        relative_y = 540 - player_y - 64 + self.y
-        return int(relative_x), int(relative_y)
-
-    def update_stats(self, time):
-        pass
-
-
 class Warrior(Enemy):
-    def __init__(self, x, y, path):
-        super().__init__(x, y, path, 100, 1)
+    def __init__(self, x, y, path, group):
+        super().__init__(x, y, path, group, 100, 1)
 
 
 class Weapon():
