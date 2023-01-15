@@ -4,11 +4,11 @@ import time
 from interface import *
 from cheat_code import *
 from map import *
-from numpy import sign
+from random import choice
 
 
 CONDITIONS = {'main title': 0, 'main menu': 1,
-              'settings': 2, 'hub': 3, 'library': 4, 'characters': 5, 'upgrades': 6, 'choose map': 7, 'game': 8}  # condition of game
+              'settings': 2, 'hub': 3, 'library': 4, 'characters': 5, 'upgrades': 6, 'choose map': 7, 'game': 8, 'game over': 9}  # condition of game
 MAPS = {'underground': 0, 'incineration plant': 1}
 CHARACTERS = {'cleaner': 0, 'guard': 1}
 CAESAR_SHIFT = 10
@@ -36,6 +36,7 @@ class GameManager:
         self.main_menu = Background('images/menu/main menu.png')
         self.hub_menu = Background('images/menu/hub menu.png')
         self.choose_map_menu = Background('images/menu/choose map menu.png')
+        self.game_over_menu = Background('images/menu/game over.png')
         # objects
 
         self.main_buttons = {}
@@ -90,6 +91,20 @@ class GameManager:
         self.descriptions_of_maps = ['Подземная парковка', 'Мусоросжигатель']
         self.map_description = Title(
             x=500, y=700, text=self.descriptions_of_maps[self.current_map], font_size=70)
+        
+        self.main_buttons = {}
+        self.main_buttons['continue'] = Button(
+            x=(self.resolution[0] - 800) // 2, y=200, text='Продолжить')
+        self.main_buttons['new game'] = Button(
+            x=(self.resolution[0] - 800) // 2, y=200, text='Новая игра')
+        self.main_buttons['settings'] = Button(
+            x=(self.resolution[0] - 800) // 2, y=400, text='Настройки')
+        self.main_buttons['exit'] = Button(
+            x=(self.resolution[0] - 800) // 2, y=600, text='Выход')
+        
+        self.game_over_buttons = {}
+        self.game_over_buttons['continue'] = Button(
+            x=(self.resolution[0] - 800) // 2, y=800, text='Продолжить')
 
     def main_loop(self):
         while True:
@@ -154,6 +169,13 @@ class GameManager:
                     self.choose_map_menu_buttons[i].render(self)
                 self.map_description.text = self.descriptions_of_maps[self.current_map]
                 self.map_description.render(self)
+        elif self.current_condition == CONDITIONS['game over']:
+            self.game_over_menu.render(self)
+            self.timer_bar = TimerBar(
+                "images/character/clock.png", x=850, y=300)
+            self.timer_bar.render(self, self.last_time)
+            for i in self.game_over_buttons:
+                self.game_over_buttons[i].render(self)
 
     def check_events(self):
         for i in pygame.event.get():
@@ -208,9 +230,17 @@ class GameManager:
                         self.map = Map(self.current_map)
                         self.player_entity = Player(
                             0, 0, f'images/character/{self.current_character}.png')
+                        self.player_entity.add_weapon(Hook(self.player_entity))
                         self.enemy_spawner = EnemySpawner(
                             self.current_map, self.fps, self)
                         self.start_time = time.time()
+                        self.healt_bar = HealthBar("images/character/health.png")
+                        self.timer_bar = TimerBar(
+                            "images/character/clock.png")
+
+                elif self.current_condition == CONDITIONS['game over']:
+                    if self.game_over_buttons['continue'].check_click(i):
+                        self.current_condition = CONDITIONS['choose map']
 
             if i.type == pygame.KEYDOWN:
                 if self.current_condition == CONDITIONS['main title']:
@@ -226,9 +256,18 @@ class GameManager:
             self.enemy_spawner.update_enemy_movement(
                 self.player_entity.x, self.player_entity.y)
             self.player_entity.render(self)
+            self.player_entity.shoot(self.time_since_start, self.clock.get_fps(), self)
             self.enemy_spawner.update_dificulty(self.time_since_start)
             if self.time_since_start % 1 == 0 and int(self.time_since_start) % 5 == 0:
                 self.enemy_spawner.spawn_enemies()
+            self.healt_bar.render(
+                self, self.player_entity.hp, self.player_entity.max_hp)
+            self.timer_bar.render(self, self.time_since_start)
+            self.player_entity.check_collision(self, self.time_since_start)
+            self.last_time = self.time_since_start
+            if self.player_entity.hp <= 0:
+                self.current_condition = CONDITIONS['game over']
+
 
     def create_default_settings_file(self):
         fps = 60
@@ -330,9 +369,19 @@ class Entity(pygame.sprite.Sprite):
 class Player(Entity):
     def __init__(self, x, y, path):
         super().__init__(x, y, path)
+        self.rect.x = (1920 - self.size) // 2
+        self.rect.y = (1080 - self.size) // 2
         self.speed = 300
         self.image = pygame.transform.scale(
             self.image, (100, 100)).convert_alpha()
+        self.weapons = []
+        self.max_hp = 100
+        self.hp = 100
+        self.iframes = 0.2
+        self.last_hit_time = 0
+    
+    def add_weapon(self, weapon):
+        self.weapons.append(weapon)
 
     def update_movement(self, fps):
         mouse_pos = pygame.mouse.get_pos()
@@ -344,15 +393,80 @@ class Player(Entity):
         self.y -= (1080 // 2 - mouse_y) * k
 
     def render(self, game_manager):
-        game_manager.display.blit(
-            self.image, (1920 // 2 - self.size // 2, 1080 // 2 - self.size // 2))
+        game_manager.display.blit(self.image, (self.rect.x, self.rect.y))
+        for i in self.weapons:
+            i.render(game_manager)
+    
+    def shoot(self, time, fps, game_manager):
+        for i in self.weapons:
+            i.shoot(time, fps, game_manager)
+    
+    def check_collision(self, game_manager, time):
+        collision = pygame.sprite.spritecollideany(
+            self, game_manager.enemy_spawner.enemy_group)
+        if collision != None and (time - self.last_hit_time) > self.iframes:
+            self.hp -= collision.damage
+            self.last_hit_time = time
 
+class Weapon():
+    def __init__(self, player, path, attack_interval=1, speed=10, damage=30):
+        self.image = pygame.image.load(path)
+        self.attack_interval = attack_interval
+        self.speed = speed
+        self.damage = damage
+        self.rect = self.image.get_rect()
+        self.player = player
+        self.rect.x = 1920 // 2
+        self.rect.y = 1080 // 2
+    
+    def return_relative_coords(self, player_x, player_y):
+        relative_x = 960 - player_x - 64 + self.x
+        relative_y = 540 - player_y - 64 + self.y
+        return int(relative_x), int(relative_y)
+    
+    def render(self, game_manager):
+        relative_x, relative_y = self.return_relative_coords(
+            self.player.x, self.player.y)
+        self.rect.x = relative_x
+        self.rect.y = relative_y
+        game_manager.display.blit(self.image, (relative_x, relative_y))
+
+
+class Hook(Weapon):
+    def __init__(self, player, path='images/weapon/hook.png'):
+        super().__init__(player, path, speed=1000)
+        self.is_atacking = False
+        self.reset_pos()
+    
+    def shoot(self, time, fps, game_manager):
+        self.rect.x -= self.delta_x / fps
+        self.rect.y -= self.delta_y / fps
+        collision = pygame.sprite.spritecollideany(
+            self, game_manager.enemy_spawner.enemy_group)
+        if collision != None:
+            game_manager.enemy_spawner.enemies.remove(collision)
+            collision.kill()
+            del collision
+            self.reset_pos()
+        if not((0 < self.rect.x < 1920) and (0 < self.rect.y < 1080)):
+            self.reset_pos()
+    
+    def reset_pos(self):
+        self.rect.x = 1920 // 2
+        self.rect.y = 1080 // 2
+        self.delta_x = randint(0, self.speed) * choice((-1, 1))
+        self.delta_y = (self.speed ** 2 - self.delta_x **
+                        2) ** 0.5 * choice((-1, 1))
+
+    def render(self, game_manager):
+        game_manager.display.blit(self.image, (self.rect.x, self.rect.y))
 
 class Enemy(Entity):
     def __init__(self, x, y, path, group, damage=10, attack_speed=1, base_hp=100):
         super().__init__(x, y, path)
         self.speed = 200
         self.base_damage = damage
+        self.damage = self.base_damage
         self.attack_speed = attack_speed
         self.base_hp = base_hp
         self.group = group
@@ -395,6 +509,10 @@ class Enemy(Entity):
         pass
 
 
+class Warrior(Enemy):
+    def __init__(self, x, y, path, group):
+        super().__init__(x, y, path, group, 10, 1)
+
 class EnemySpawner():
     def __init__(self, map, fps, game_manager):
         self.all_enemies_image = Image.new('RGB', (1920, 1080))
@@ -408,7 +526,7 @@ class EnemySpawner():
         x = self.game_manager.player_entity.x
         y = self.game_manager.player_entity.y
         if self.map == MAPS['underground']:
-            for i in range(30):
+            for i in range(5):
                 enemy_x = randint(0, 1920)
                 enemy_y = randint(0, 1080)
                 x_sign = randint(0, 2)
@@ -433,18 +551,6 @@ class EnemySpawner():
 
     def update_dificulty(self, time):
         self.dificulty = time // 60
-
-
-class Warrior(Enemy):
-    def __init__(self, x, y, path, group):
-        super().__init__(x, y, path, group, 100, 1)
-
-
-class Weapon():
-    def __init__(self, path, speed=1, damage=30):
-        self.image = pygame.image.load(path)
-        self.attack_speed = speed
-        self.damage = damage
 
 
 def main():

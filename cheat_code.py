@@ -15,7 +15,7 @@ class CheatCode():
 
         self.btn_convert = tk.Button(
             master=self.window,
-            text="начитерить чипов",
+            text="add money",
             command=self.add_money
         )
         self.frm_entry.grid(row=0, column=0, padx=10)

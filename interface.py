@@ -114,3 +114,24 @@ class Slider(UserInterface):
 
     def set_value(self, value):
         self.value = value
+
+class HealthBar(UserInterface):
+    def __init__(self, path, x=750, y=950):
+        super().__init__(path, x, y)
+    
+    def render(self, game_manager, hp, max_hp):
+        pygame.draw.rect(game_manager.display, pygame.Color(
+            255, 0, 0), (self.x + 80, self.y + 20, hp / max_hp * 410, 65))
+        super().render(game_manager)
+
+
+class TimerBar(UserInterface):
+    def __init__(self, path, x=1600, y=0, font_size=MAIN_FONT_SIZE, color = (255, 255, 255)):
+        super().__init__(path, x, y)
+        self.font = pygame.font.Font(FONT, font_size)
+        self.color = color
+
+    def render(self, game_manager, time):
+        self.text_box = self.font.render(str(int(time)), True, self.color)
+        game_manager.display.blit(self.text_box, (self.x + 100, self.y))
+        super().render(game_manager)
