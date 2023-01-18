@@ -226,17 +226,22 @@ class GameManager:
                         if self.current_map > len(MAPS) - 1:
                             self.current_map = 0
                     if self.choose_map_menu_buttons['start'].check_click(i):
-                        self.current_condition = CONDITIONS['game']
-                        self.map = Map(self.current_map)
-                        self.player_entity = Player(
-                            0, 0, f'images/character/{self.current_character}.png')
-                        self.player_entity.add_weapon(Hook(self.player_entity))
-                        self.enemy_spawner = EnemySpawner(
-                            self.current_map, self.fps, self)
-                        self.start_time = time.time()
-                        self.healt_bar = HealthBar("images/character/health.png")
-                        self.timer_bar = TimerBar(
-                            "images/character/clock.png")
+                        if self.current_map not in self.player_profile.maps:
+                            if self.player_profile.chips >= 500:
+                                self.player_profile.chips -= 500
+                                self.player_profile.maps.append(self.current_map)
+                        else:
+                            self.current_condition = CONDITIONS['game']
+                            self.map = Map(self.current_map)
+                            self.player_entity = Player(
+                                0, 0, (f'images/character/{self.current_character}.png', ))
+                            self.player_entity.add_weapon(Hook(self.player_entity))
+                            self.enemy_spawner = EnemySpawner(
+                                self.current_map, self.fps, self)
+                            self.start_time = time.time()
+                            self.healt_bar = HealthBar("images/character/health.png")
+                            self.timer_bar = TimerBar(
+                                "images/character/clock.png")
 
                 elif self.current_condition == CONDITIONS['game over']:
                     if self.game_over_buttons['continue'].check_click(i):
@@ -355,11 +360,13 @@ class PLayerProfile():
 
 
 class Entity(pygame.sprite.Sprite):
-    def __init__(self, x, y, path):
+    def __init__(self, x, y, paths):
         pygame.sprite.Sprite.__init__(self)
         self.x = x
         self.y = y
-        self.image = pygame.image.load(path).convert_alpha()
+        self.images = [pygame.image.load(i).convert_alpha() for i in paths]
+        self.image_count = 0
+        self.image = self.images[self.image_count]
         self.size = self.image.get_size()[0] // 2
         self.rect = self.image.get_rect()
         self.rect.height //= 2
@@ -367,8 +374,8 @@ class Entity(pygame.sprite.Sprite):
 
 
 class Player(Entity):
-    def __init__(self, x, y, path):
-        super().__init__(x, y, path)
+    def __init__(self, x, y, paths):
+        super().__init__(x, y, paths)
         self.rect.x = (1920 - self.size) // 2
         self.rect.y = (1080 - self.size) // 2
         self.speed = 300
@@ -462,8 +469,8 @@ class Hook(Weapon):
         game_manager.display.blit(self.image, (self.rect.x, self.rect.y))
 
 class Enemy(Entity):
-    def __init__(self, x, y, path, group, damage=10, attack_speed=1, base_hp=100):
-        super().__init__(x, y, path)
+    def __init__(self, x, y, paths, group, damage=10, attack_speed=1, base_hp=100):
+        super().__init__(x, y, paths)
         self.speed = 200
         self.base_damage = damage
         self.damage = self.base_damage
@@ -472,7 +479,10 @@ class Enemy(Entity):
         self.group = group
         self.add(self.group)
 
-    def update_movement(self, target_x, target_y, fps):
+    def update_movement(self, target_x, target_y, fps, frame_count):
+        if frame_count % 30 == 0:
+            self.image_count += 1
+            self.image = self.images[self.image_count % len(self.images)]
         k = (self.speed/fps) / (abs(self.x - target_x) + abs(self.y - target_y))
         delta_x = (self.x - target_x) * k
         delta_y = (self.y - target_y) * k
@@ -510,8 +520,8 @@ class Enemy(Entity):
 
 
 class Warrior(Enemy):
-    def __init__(self, x, y, path, group):
-        super().__init__(x, y, path, group, 10, 1)
+    def __init__(self, x, y, paths, group):
+        super().__init__(x, y, paths, group, 10, 1)
 
 class EnemySpawner():
     def __init__(self, map, fps, game_manager):
@@ -521,31 +531,36 @@ class EnemySpawner():
         self.fps = fps
         self.game_manager = game_manager
         self.enemy_group = pygame.sprite.Group()
+        self.frame_count = 0
 
     def spawn_enemies(self):
         x = self.game_manager.player_entity.x
         y = self.game_manager.player_entity.y
-        if self.map == MAPS['underground']:
-            for i in range(5):
-                enemy_x = randint(0, 1920)
-                enemy_y = randint(0, 1080)
-                x_sign = randint(0, 2)
-                y_sign = randint(0, 2)
-                if x_sign == 0:
-                    enemy_x = x + enemy_x + 1920
-                elif x_sign == 1:
-                    enemy_x = x - enemy_x - 1920
-                if y_sign == 0:
-                    enemy_y = y + enemy_y + 1080
-                else:
-                    enemy_y = y - enemy_y - 1080
-                self.enemies.append(
-                    Warrior(enemy_x, enemy_y, f'images/enemy/{self.map}/0.png', self.enemy_group))
+        if self.game_manager.current_map == MAPS['underground']:
+            spawn_count = 5
+        else:
+            spawn_count = 20
+        for i in range(spawn_count):
+            enemy_x = randint(0, 1920)
+            enemy_y = randint(0, 1080)
+            x_sign = randint(0, 2)
+            y_sign = randint(0, 2)
+            if x_sign == 0:
+                enemy_x = x + enemy_x + 1920
+            elif x_sign == 1:
+                enemy_x = x - enemy_x - 1920
+            if y_sign == 0:
+                enemy_y = y + enemy_y + 1080
+            else:
+                enemy_y = y - enemy_y - 1080
+            self.enemies.append(
+                Warrior(enemy_x, enemy_y, (f'images/enemy/{self.map}/0.png', f'images/enemy/{self.map}/0_1.png'), self.enemy_group))
 
     def update_enemy_movement(self, target_x, target_y):
         self.all_enemies_image = Image.new('RGB', (1920, 1080), color=None)
+        self.frame_count += 1
         for i in self.enemies:
-            i.update_movement(target_x, target_y, self.game_manager.clock.get_fps())
+            i.update_movement(target_x, target_y, self.game_manager.clock.get_fps(), self.frame_count)
             i.render(target_x, target_y, self.game_manager)
 
 
